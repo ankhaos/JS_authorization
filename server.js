@@ -13,7 +13,8 @@ const JWT_SECRET = 'Al-3ex-5a-66ndr-23-eDum-822-as';
 
 
 //экспортируем функции
-const { addUser, disconnect, findUser, deleteUser, updateUser } = require('./DataBase/connection');
+const { addUser, disconnect, findUser, deleteUser, updateUser, checkToken } = require('./DataBase/connection');
+const { hash } = require('./passwordHash');
 
 // Используем body-parser для парсинга данных формы
 app.use(bodyParser.urlencoded({ extended: true }));
@@ -22,7 +23,7 @@ app.use(express.json());
 app.use(cookieParser());
 
 app.get('/create', (req, res) => { //маршрут отображения формы
-    res.sendFile(__dirname + '/creationpage.html');
+    res.sendFile(__dirname + '/Pages/creationpage.html');
 });
 
 // Маршрут для обработки POST-запроса с данными формы
@@ -30,7 +31,7 @@ app.post('/create', async (req, res) => {
     if(!req.body) return response.sendStatus(400);
     const username = req.body.username;
     const email = req.body.email;
-    const password = req.body.password;
+    const password = await hash(req.body.password);
 
     const result = await addUser(username, email, password);
     if(result == false){
@@ -45,7 +46,7 @@ app.post('/create', async (req, res) => {
 });
 
 app.get('/login', (req, res) => { //маршрут отображения формы
-    res.sendFile(__dirname + '/login.html');
+    res.sendFile(__dirname + '/Pages/login.html');
 });
 
 app.post('/login', async (req, res) => {
@@ -82,18 +83,28 @@ const authenticateToken = (req, res, next) => {
 
 // Маршрут для выхода (защищенный маршрут)
 app.get('/logout', authenticateToken, (req, res) => {
-    res.sendFile(__dirname + '/logout.html');
+    res.sendFile(__dirname + '/Pages/logout.html');
 });
 
 app.post('/logout', authenticateToken, async (req, res) => {
     if(!req.body) return res.sendStatus(400);
     const newemail = req.body.email;
-    const newpassword = req.body.password;
+    var newpassword = req.body.password;
+    if (newpassword != '') {
+        newpassword = await hash(newpassword);
+    }
 
     const { id } = req.user;
     await updateUser(id, newemail, newpassword);
 
     console.log('Data changed');
+    res.clearCookie('jwtToken');
+    console.log(`Logged out the account ${req.user.username}`);
+    res.redirect('/login');
+});
+
+app.get('/exit', authenticateToken, async (req, res) => {
+    if(!req.body) return res.sendStatus(400);
     res.clearCookie('jwtToken');
     console.log(`Logged out the account ${req.user.username}`);
     res.redirect('/login');
@@ -114,6 +125,22 @@ app.get('/delete', authenticateToken, async (req, res) => {
     res.redirect('/create');
 });
 
+app.get('/confirm/:token', async (req, res) => {
+    try {
+      const token = req.params.token;
+  
+      if(await checkToken(token)){
+        res.send('Ваш аккаунт успешно подтвержден!');
+      } else {
+        res.status(400).send('Неверный токен подтверждения.');
+      }
+    } catch (error) {
+      console.error('Error confirming account:', error);
+      res.status(500).send('Ошибка при подтверждении аккаунта.');
+    }
+  });
+
+
 app.listen(port, host, () => {
     console.log(`Сервер начал прослушивание запросов на порту ${port}\nПосмотреть: http://${host}:${port}`);
 });
@@ -130,3 +157,5 @@ process.on('SIGTERM', async () => { //генерируется при завер
     await disconnect();
     process.exit(0);
 });
+
+
