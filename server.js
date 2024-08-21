@@ -13,7 +13,7 @@ const JWT_SECRET = 'Al-3ex-5a-66ndr-23-eDum-822-as';
 
 
 //экспортируем функции
-const { addUser, disconnect, findUser, deleteUser, updateUser, checkToken } = require('./DataBase/connection');
+const { addUser, disconnect, findUser, deleteUser, updateUser } = require('./DataBase/connection');
 const { hash } = require('./passwordHash');
 
 // Используем body-parser для парсинга данных формы

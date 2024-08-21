@@ -1,38 +1,6 @@
 const { Client } = require('pg');
 
 const { compare } = require('../passwordHash'); //относительный путь
-const nodemailer = require('nodemailer'); // отправка писем
-const crypto = require('crypto'); // модуль криптографии
-
-// Настройка nodemailer
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: 'holodilnik.smartapp@gmail.com',
-    pass: 'kokomi2022'
-  }
-});
-
-async function sendConfirmationEmail(email) {
-  try {
-      console.log('попали');
-    const token = crypto.randomBytes(20).toString('hex'); // Генерация уникального токена
-
-    await addTokentoDb(token, email);
-
-    // Отправка письма
-    const mailOptions = {
-      from: 'holodilnik.smartapp@gmail.com',
-      to: email,
-      subject: 'Подтверждение регистрации',
-      text: `Пожалуйста, подтвердите вашу регистрацию, перейдя по ссылке: http://127.0.0.1:3003/confirm/${token}`
-    };
-
-    await transporter.sendMail(mailOptions);
-  } catch (error) {
-    console.error('Error sending confirmation email:', error);
-  }
-}
 
 const client = new Client({
 	user: 'anna',
@@ -50,8 +18,6 @@ const createTable = `
   password VARCHAR(255) NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT now(),
-  email_token VARCHAR(255),
-  confirmed BOOLEAN,
 );
 `;
 
@@ -85,43 +51,6 @@ async function createUsersTable() {
     }
 }
 
-async function addTokentoDb(token, email){
-  try {
-    if (!isConnected) {
-        await connect();
-    }
-    await client.query('UPDATE users SET email_token = $1 WHERE email = $2', [token, email]);
-    return true;
-
-  } catch (error) {
-      console.error('Error loading data:', error);
-      return false;
-  }
-}
-
-async function checkToken(token){
-  try{
-    if (!isConnected){
-      await connect();
-    }
-    // Проверка токена в базе данных
-    const result = await client.query('SELECT * FROM users WHERE email_token = $1', [token]);
-  
-    if (result.rows.length > 0) {
-      const user = result.rows[0];
-
-      // Активация аккаунта
-      await client.query('UPDATE users SET confirmed = true, email_token = NULL WHERE id = $1', [user.id]);
-      return true;
-    }
-    else{
-      return false;
-    }
-  } catch (error) {
-    console.error('Error loading data:', error);
-    return false;
-  }
-}
 
 async function addUser(username, email, password) {
   try {
@@ -136,9 +65,6 @@ async function addUser(username, email, password) {
       }
       else{
         await client.query('INSERT INTO users (username, email, password) VALUES ($1, $2, $3)', [username, email, password]);
-        
-        // Отправка письма для подтверждения
-        await sendConfirmationEmail(email);
         
         return true;
       }
@@ -190,8 +116,6 @@ async function updateUser(id, newemail, newpassword) {
         const user = checkResult.rows[0];
         if(newemail != "" && checkemail.rows.length == 0){
           await client.query('UPDATE users SET email = $1, updated_at = now()  WHERE id = $2', [newemail, id]);
-          // Отправка письма для подтверждения
-          await sendConfirmationEmail(newemail);
         }
           if(newpassword != "") await client.query('UPDATE users SET password = $1, updated_at = now() WHERE id = $2', [newpassword, id]);
         return true;
@@ -227,6 +151,6 @@ async function deleteUser(username) {
   }
 }
 
-module.exports = { addUser, disconnect, findUser, deleteUser, updateUser, addTokentoDb, checkToken, };
+module.exports = { addUser, disconnect, findUser, deleteUser, updateUser };
 
   //Аня!!!! ip сервера = ip ubuntu, но в pg_hba.conf тоже она
